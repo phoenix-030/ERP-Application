@@ -1,18 +1,18 @@
 import React, {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useState,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
 } from "react";
 
 import * as authService from "@/services/authService";
 import type {
-    AuthUser,
-    ProfileUpdate,
-    SignUpInput,
-    UserRole,
+  AuthUser,
+  ProfileUpdate,
+  SignUpInput,
+  UserRole,
 } from "@/types/auth";
 
 type AuthContextValue = {
@@ -45,13 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         try {
           await authService.signOut();
-        } catch {x
+        } catch {
           // ignore cleanup errors
         }
         if (mounted) setUser(null);
       } finally {
         if (mounted) setIsLoading(false);
-      } 
+      }
     }
 
     hydrate();

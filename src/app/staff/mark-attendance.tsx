@@ -1,20 +1,22 @@
-import { CalendarCheck, CheckCircle2 } from "lucide-react-native";
+import { CalendarCheck, CheckCircle2, Download } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
+import { downloadAttendanceWorkbook } from "@/services/attendanceExportService";
 import {
-  addAttendanceRecord,
-  getAllStudentUsers,
+    addAttendanceRecord,
+    getAllStudentUsers,
 } from "@/services/studentService";
 
 type StudentAttendanceOption = {
@@ -29,6 +31,12 @@ export default function MarkAttendanceScreen() {
   const [students, setStudents] = useState<StudentAttendanceOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [signatureName, setSignatureName] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const [classFilter, setClassFilter] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("");
+  const [staffFilter, setStaffFilter] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -48,7 +56,7 @@ export default function MarkAttendanceScreen() {
             present: false,
           })),
         );
-      } catch (error) {
+      } catch {
         if (!isMounted) {
           return;
         }
@@ -68,6 +76,11 @@ export default function MarkAttendanceScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    setSubjectFilter(user?.subject ?? "");
+    setClassFilter(user?.yearSection ?? user?.department ?? "");
+  }, [user?.department, user?.subject, user?.yearSection]);
+
   const toggleAttendance = (index: number) => {
     setStudents((prev) =>
       prev.map((student, i) =>
@@ -76,28 +89,79 @@ export default function MarkAttendanceScreen() {
     );
   };
 
+  const className =
+    user?.yearSection?.trim() || user?.department?.trim() || "General";
+  const subjectName = user?.subject?.trim() || "Attendance";
+
   const handleSave = async () => {
+    const trimmedSignature = signatureName.trim();
+
+    if (!trimmedSignature) {
+      Alert.alert(
+        "Signature required",
+        "Please type your name before submitting.",
+      );
+      return;
+    }
+
     setIsSaving(true);
 
     try {
       const today = new Date().toISOString().slice(0, 10);
+      const now = new Date();
+      const time = now.toLocaleTimeString("en-US", { hour12: false });
 
       await Promise.all(
         students.map((student) =>
           addAttendanceRecord(student.id, {
             date: today,
-            subject: "Attendance",
+            time,
+            subject: subjectName,
+            className,
+            studentId: student.loginId,
+            studentName: student.name,
             status: student.present ? "present" : "absent",
-            markedBy: user?.loginId ?? user?.name ?? "staff",
+            markedBy: trimmedSignature,
           }),
         ),
       );
 
+      setStudents((prev) =>
+        prev.map((student) => ({ ...student, present: false })),
+      );
+      setSignatureName("");
       Alert.alert("Attendance Saved", "Student attendance has been updated.");
-    } catch (error) {
+    } catch {
       Alert.alert("Save failed", "Unable to save attendance right now.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+
+    try {
+      await downloadAttendanceWorkbook({
+        date: dateFilter.trim() || undefined,
+        className: classFilter.trim() || undefined,
+        subject: subjectFilter.trim() || undefined,
+        staffName: staffFilter.trim() || undefined,
+      });
+
+      Alert.alert(
+        "Download ready",
+        "The filtered Excel file has been generated.",
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to generate the Excel file.";
+
+      Alert.alert("Download failed", message);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -160,6 +224,20 @@ export default function MarkAttendanceScreen() {
           ))
         )}
 
+        <View style={styles.signatureSection}>
+          <Text style={styles.sectionTitle}>Staff Signature</Text>
+          <Text style={styles.helperText}>
+            Type your name and submit to save the attendance signature.
+          </Text>
+          <TextInput
+            style={styles.signatureInput}
+            value={signatureName}
+            onChangeText={setSignatureName}
+            placeholder="Enter your name"
+            placeholderTextColor="#94a3b8"
+          />
+        </View>
+
         <TouchableOpacity
           style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
           onPress={handleSave}
@@ -168,9 +246,63 @@ export default function MarkAttendanceScreen() {
           {isSaving ? (
             <ActivityIndicator color="#ffffff" />
           ) : (
-            <Text style={styles.saveButtonText}>Save Attendance</Text>
+            <Text style={styles.saveButtonText}>Submit Attendance</Text>
           )}
         </TouchableOpacity>
+
+        <View style={styles.exportCard}>
+          <Text style={styles.sectionTitle}>Download Excel</Text>
+          <Text style={styles.helperText}>
+            Filter by date, class, subject, or staff name before downloading.
+          </Text>
+
+          <TextInput
+            style={styles.filterInput}
+            value={dateFilter}
+            onChangeText={setDateFilter}
+            placeholder="Date (YYYY-MM-DD)"
+            placeholderTextColor="#94a3b8"
+          />
+          <TextInput
+            style={styles.filterInput}
+            value={classFilter}
+            onChangeText={setClassFilter}
+            placeholder="Class"
+            placeholderTextColor="#94a3b8"
+          />
+          <TextInput
+            style={styles.filterInput}
+            value={subjectFilter}
+            onChangeText={setSubjectFilter}
+            placeholder="Subject"
+            placeholderTextColor="#94a3b8"
+          />
+          <TextInput
+            style={styles.filterInput}
+            value={staffFilter}
+            onChangeText={setStaffFilter}
+            placeholder="Staff Name"
+            placeholderTextColor="#94a3b8"
+          />
+
+          <TouchableOpacity
+            style={[
+              styles.downloadButton,
+              isDownloading && styles.saveButtonDisabled,
+            ]}
+            onPress={handleDownload}
+            disabled={isDownloading}
+          >
+            {isDownloading ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <View style={styles.downloadButtonContent}>
+                <Download color="#ffffff" size={18} />
+                <Text style={styles.downloadButtonText}>Download Excel</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -195,6 +327,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: { color: "#64748b", fontSize: 14 },
+  sectionTitle: { fontSize: 18, fontWeight: "700", color: "#111827" },
+  helperText: { fontSize: 13, color: "#64748b", marginTop: 6 },
   studentRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -223,6 +357,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   pillText: { fontSize: 12, fontWeight: "600", color: "#4338ca" },
+  signatureSection: {
+    marginTop: 8,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 16,
+  },
+  signatureInput: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#0f172a",
+    backgroundColor: "#f8fafc",
+  },
   saveButton: {
     backgroundColor: "#2563eb",
     borderRadius: 14,
@@ -232,4 +382,33 @@ const styles = StyleSheet.create({
   },
   saveButtonDisabled: { opacity: 0.7 },
   saveButtonText: { color: "#ffffff", fontSize: 16, fontWeight: "700" },
+  exportCard: {
+    marginTop: 20,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 16,
+  },
+  filterInput: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: "#0f172a",
+    backgroundColor: "#f8fafc",
+  },
+  downloadButton: {
+    backgroundColor: "#0f172a",
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  downloadButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  downloadButtonText: { color: "#ffffff", fontSize: 16, fontWeight: "700" },
 });

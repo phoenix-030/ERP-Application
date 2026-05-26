@@ -1,5 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import {
+  appendAttendanceExportRow,
+  normalizeAttendanceExportRow,
+} from "@/services/attendanceExportService";
 import { getUsers } from "@/services/authStorage";
 import type {
   AssignmentRecord,
@@ -14,6 +18,11 @@ const DEFAULT_INTERNAL_MAX = 50;
 const DEFAULT_EXTERNAL_MAX = 100;
 const DEFAULT_TOTAL_MAX = 100;
 
+const studentDataListeners = new Set<() => void>();
+let cachedStudentDataMap: Record<string, StudentRecord> | null = null;
+let studentDataLoadPromise: Promise<Record<string, StudentRecord>> | null =
+  null;
+
 function createDefaultRecord(): StudentRecord {
   return {
     attendance: [],
@@ -22,20 +31,47 @@ function createDefaultRecord(): StudentRecord {
   };
 }
 
-async function getStudentDataMap(): Promise<Record<string, StudentRecord>> {
-  const raw = await AsyncStorage.getItem(STUDENT_DATA_KEY);
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as Record<string, StudentRecord>;
-  } catch {
-    return {};
+async function loadStudentDataMap(): Promise<Record<string, StudentRecord>> {
+  if (cachedStudentDataMap) {
+    return cachedStudentDataMap;
   }
+
+  if (!studentDataLoadPromise) {
+    studentDataLoadPromise = (async () => {
+      const raw = await AsyncStorage.getItem(STUDENT_DATA_KEY);
+      if (!raw) {
+        cachedStudentDataMap = {};
+        return cachedStudentDataMap;
+      }
+
+      try {
+        cachedStudentDataMap = JSON.parse(raw) as Record<string, StudentRecord>;
+      } catch {
+        cachedStudentDataMap = {};
+      }
+
+      return cachedStudentDataMap;
+    })().finally(() => {
+      studentDataLoadPromise = null;
+    });
+  }
+
+  return studentDataLoadPromise;
 }
 
 async function saveStudentDataMap(
   map: Record<string, StudentRecord>,
 ): Promise<void> {
+  cachedStudentDataMap = map;
   await AsyncStorage.setItem(STUDENT_DATA_KEY, JSON.stringify(map));
+  studentDataListeners.forEach((listener) => listener());
+}
+
+export function subscribeStudentData(listener: () => void): () => void {
+  studentDataListeners.add(listener);
+  return () => {
+    studentDataListeners.delete(listener);
+  };
 }
 
 export function calculateTotalMarks(
@@ -124,7 +160,7 @@ export async function findStudentByLoginId(
 export async function getStudentRecordByUserId(
   userId: string,
 ): Promise<StudentRecord> {
-  const map = await getStudentDataMap();
+  const map = await loadStudentDataMap();
   return map[userId] ?? createDefaultRecord();
 }
 
@@ -132,16 +168,25 @@ export async function addAttendanceRecord(
   userId: string,
   record: Omit<AttendanceRecord, "id" | "createdAt">,
 ): Promise<StudentRecord> {
-  const map = await getStudentDataMap();
+  const map = await loadStudentDataMap();
   const current = map[userId] ?? createDefaultRecord();
   const newRecord: AttendanceRecord = {
     ...record,
+    date: record.date ?? new Date().toISOString().slice(0, 10),
+    time:
+      record.time ?? new Date().toLocaleTimeString("en-US", { hour12: false }),
+    className: record.className ?? "General",
+    studentId: record.studentId ?? userId,
+    studentName: record.studentName ?? "Student",
     id: `${Date.now()}-${Math.random()}`,
     createdAt: Date.now(),
   };
+
   current.attendance.unshift(newRecord);
   map[userId] = current;
   await saveStudentDataMap(map);
+  await appendAttendanceExportRow(normalizeAttendanceExportRow(newRecord));
+
   return current;
 }
 
@@ -149,7 +194,7 @@ export async function addMarkRecord(
   userId: string,
   record: Omit<MarkRecord, "id" | "createdAt">,
 ): Promise<StudentRecord> {
-  const map = await getStudentDataMap();
+  const map = await loadStudentDataMap();
   const current = map[userId] ?? createDefaultRecord();
   const internalMarks = record.internalMarks ?? 0;
   const externalMarks = record.externalMarks ?? 0;
@@ -175,7 +220,7 @@ export async function addAssignmentRecord(
   userId: string,
   record: Omit<AssignmentRecord, "id" | "createdAt">,
 ): Promise<StudentRecord> {
-  const map = await getStudentDataMap();
+  const map = await loadStudentDataMap();
   const current = map[userId] ?? createDefaultRecord();
   const newRecord: AssignmentRecord = {
     ...record,

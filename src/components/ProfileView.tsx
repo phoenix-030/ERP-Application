@@ -1,26 +1,8 @@
 import { useAuth } from "@/context/AuthContext";
 import { LinearGradient } from "expo-linear-gradient";
-import {
-  BookOpen,
-  ChevronDown,
-  Edit3,
-  LogOut,
-  Mail,
-  MapPin,
-  Phone,
-  Settings,
-  User,
-} from "lucide-react-native";
+import {  BookOpen,ChevronDown,Edit3,LogOut,Mail,MapPin,Phone,Settings,User,} from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import {  Alert,  ScrollView,  StyleSheet,  Text,  TextInput,  TouchableOpacity,  View,} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const STAFF_SUBJECT_OPTIONS = [

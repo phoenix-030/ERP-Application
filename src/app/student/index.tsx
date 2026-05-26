@@ -1,27 +1,30 @@
 import { useAuth } from "@/context/AuthContext";
 import {
-    getMarkTotal,
-    getStudentRecordByUserId,
+  getMarkTotal,
+  getStudentRecordByUserId,
+  subscribeStudentData,
 } from "@/services/studentService";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-    AlertCircle,
-    Bell,
-    BookOpen,
-    Calendar,
-    CheckCircle,
-    ChevronRight,
-    Clock,
+  AlertCircle,
+  Bell,
+  BookOpen,
+  Calendar,
+  CheckCircle,
+  ChevronRight,
+  Clock,
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+import { router } from "expo-router";
 
 import type { StudentRecord } from "@/types/student";
 
@@ -30,20 +33,31 @@ export default function StudentDashboard() {
   const [record, setRecord] = useState<StudentRecord | null>(null);
 
   const loadRecord = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setRecord(null);
+      return;
+    }
+
     const data = await getStudentRecordByUserId(user.id);
     setRecord(data);
   }, [user]);
 
   useFocusEffect(
     useCallback(() => {
+      let isMounted = true;
+
       void loadRecord();
 
-      const interval = setInterval(() => {
-        void loadRecord();
-      }, 10000);
+      const unsubscribe = subscribeStudentData(() => {
+        if (isMounted) {
+          void loadRecord();
+        }
+      });
 
-      return () => clearInterval(interval);
+      return () => {
+        isMounted = false;
+        unsubscribe();
+      };
     }, [loadRecord]),
   );
 
@@ -117,7 +131,10 @@ export default function StudentDashboard() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Today's Schedule</Text>
-            <TouchableOpacity style={styles.viewAllBtn}>
+            <TouchableOpacity
+              style={styles.viewAllBtn}
+              onPress={() => router.push("/student/timetable")}
+            >
               <Text style={styles.viewAllText}>View All</Text>
               <ChevronRight color="#2563eb" size={16} />
             </TouchableOpacity>

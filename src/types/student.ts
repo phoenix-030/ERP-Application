@@ -3,7 +3,11 @@ import type { StoredUser } from "@/types/auth";
 export type AttendanceRecord = {
   id: string;
   date: string;
+  time: string;
   subject: string;
+  className: string;
+  studentId: string;
+  studentName: string;
   status: "present" | "absent";
   markedBy: string;
   createdAt: number;

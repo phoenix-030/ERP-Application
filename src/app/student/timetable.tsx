@@ -1,32 +1,82 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Clock, MapPin, User } from "lucide-react-native";
-import React, { useMemo, useState } from "react";
+import { ChevronDown, Clock, MapPin, User } from "lucide-react-native";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { DAYS, getCurrentDayName, WEEKLY_SCHEDULE } from "@/lib/timetable";
+import { getUsers } from "@/services/authStorage";
 
-export default function TimetableScreen() {
+export default function timetable() {
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(getCurrentDayName());
+  const [staffOptions, setStaffOptions] = useState<string[]>([]);
+  const [expandedLesson, setExpandedLesson] = useState<string | null>(null);
+  const [selectedFacultyByLesson, setSelectedFacultyByLesson] = useState<
+    Record<string, string>
+  >({});
 
+  const isStaffUser = user?.role === "staff";
   const selectedSubject = user?.subject?.trim().toLowerCase();
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadStaffOptions() {
+      const users = await getUsers();
+      const names = users
+        .filter((storedUser) => storedUser.role === "staff")
+        .map((storedUser) => storedUser.name.trim())
+        .filter(Boolean);
+
+      if (!isMounted) {
+        return;
+      }
+
+      const uniqueNames = Array.from(new Set(names));
+      setStaffOptions(uniqueNames);
+    }
+
+    void loadStaffOptions();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const schedule = useMemo(() => {
-    return WEEKLY_SCHEDULE[activeDay].map((lesson) => ({
-      ...lesson,
-      isSelected:
+    return WEEKLY_SCHEDULE[activeDay].map((lesson) => {
+      const lessonKey = `${lesson.subject}-${lesson.time}`;
+      const matchesSelectedSubject =
         selectedSubject !== undefined &&
-        lesson.subject.toLowerCase() === selectedSubject,
-    }));
-  }, [activeDay, selectedSubject]);
+        lesson.subject.toLowerCase() === selectedSubject;
+      const faculty = selectedFacultyByLesson[lessonKey] ?? lesson.faculty;
+
+      return {
+        ...lesson,
+        faculty,
+        isSelected: matchesSelectedSubject,
+      };
+    });
+  }, [activeDay, selectedFacultyByLesson, selectedSubject]);
+
+  const visibleStaffOptions = useMemo(() => {
+    if (!isStaffUser || !staffOptions.length) {
+      return [];
+    }
+
+    const uniqueNames = Array.from(
+      new Set([...(user?.name ? [user.name] : []), ...staffOptions]),
+    );
+    return uniqueNames;
+  }, [isStaffUser, staffOptions, user?.name]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -78,93 +128,150 @@ export default function TimetableScreen() {
         </View>
 
         <View style={styles.scheduleList}>
-          {schedule.map((item) => (
-            <View
-              key={`${item.subject}-${item.time}`}
-              style={[
-                styles.classCard,
-                item.isSelected && styles.classCardSelected,
-              ]}
-            >
-              <View style={styles.classHeader}>
-                <Text
-                  style={[
-                    styles.className,
-                    item.isSelected && styles.classNameSelected,
-                  ]}
-                >
-                  {item.subject}
-                </Text>
-                <View
-                  style={[
-                    styles.badge,
-                    item.isSelected
-                      ? styles.badgeGreen
-                      : item.type === "Theory"
-                        ? styles.badgeBlue
-                        : styles.badgePurple,
-                  ]}
-                >
-                  <Text style={styles.badgeText}>
-                    {item.isSelected ? "Teaching" : item.type}
+          {schedule.map((item) => {
+            const lessonKey = `${item.subject}-${item.time}`;
+            const isExpanded = expandedLesson === lessonKey;
+
+            return (
+              <View
+                key={lessonKey}
+                style={[
+                  styles.classCard,
+                  item.isSelected && styles.classCardSelected,
+                ]}
+              >
+                <View style={styles.classHeader}>
+                  <Text
+                    style={[
+                      styles.className,
+                      item.isSelected && styles.classNameSelected,
+                    ]}
+                  >
+                    {item.subject}
+                  </Text>
+                  <View
+                    style={[
+                      styles.badge,
+                      item.isSelected
+                        ? styles.badgeGreen
+                        : item.type === "Theory"
+                          ? styles.badgeBlue
+                          : styles.badgePurple,
+                    ]}
+                  >
+                    <Text style={styles.badgeText}>
+                      {item.isSelected ? "Teaching" : item.type}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.timeRow}>
+                  <Clock
+                    color={item.isSelected ? "#14532d" : "#6b7280"}
+                    size={14}
+                  />
+                  <Text
+                    style={[
+                      styles.timeText,
+                      item.isSelected && styles.timeTextSelected,
+                    ]}
+                  >
+                    {item.time}
                   </Text>
                 </View>
-              </View>
 
-              <View style={styles.timeRow}>
-                <Clock
-                  color={item.isSelected ? "#14532d" : "#6b7280"}
-                  size={14}
-                />
-                <Text
-                  style={[
-                    styles.timeText,
-                    item.isSelected && styles.timeTextSelected,
-                  ]}
-                >
-                  {item.time}
-                </Text>
-              </View>
+                <View style={styles.detailsGrid}>
+                  <View
+                    style={[
+                      styles.detailBox,
+                      item.isSelected
+                        ? styles.detailBoxGreen
+                        : styles.detailBoxBlue,
+                    ]}
+                  >
+                    <User
+                      color={item.isSelected ? "#166534" : "#3b82f6"}
+                      size={16}
+                    />
+                    <View style={styles.detailInfo}>
+                      <Text style={styles.detailLabel}>Faculty</Text>
+                      {isStaffUser && visibleStaffOptions.length > 0 ? (
+                        <View style={styles.dropdownContainer}>
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            onPress={() =>
+                              setExpandedLesson(isExpanded ? null : lessonKey)
+                            }
+                            style={styles.dropdownTrigger}
+                          >
+                            <Text style={styles.dropdownText}>
+                              {item.faculty}
+                            </Text>
+                            <ChevronDown color="#1e293b" size={16} />
+                          </TouchableOpacity>
 
-              <View style={styles.detailsGrid}>
-                <View
-                  style={[
-                    styles.detailBox,
-                    item.isSelected
-                      ? styles.detailBoxGreen
-                      : styles.detailBoxBlue,
-                  ]}
-                >
-                  <User
-                    color={item.isSelected ? "#166534" : "#3b82f6"}
-                    size={16}
-                  />
-                  <View style={styles.detailInfo}>
-                    <Text style={styles.detailLabel}>Faculty</Text>
-                    <Text style={styles.detailValue}>{item.faculty}</Text>
+                          {isExpanded && (
+                            <View style={styles.dropdownMenu}>
+                              {visibleStaffOptions.map((name) => {
+                                const isSelected = item.faculty === name;
+                                return (
+                                  <TouchableOpacity
+                                    key={name}
+                                    onPress={() => {
+                                      setSelectedFacultyByLesson((prev) => ({
+                                        ...prev,
+                                        [lessonKey]: name,
+                                      }));
+                                      setExpandedLesson(null);
+                                    }}
+                                    style={[
+                                      styles.dropdownOption,
+                                      isSelected &&
+                                        styles.dropdownOptionSelected,
+                                    ]}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.dropdownOptionText,
+                                        isSelected &&
+                                          styles.dropdownOptionTextSelected,
+                                      ]}
+                                    >
+                                      {name}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                            </View>
+                          )}
+                        </View>
+                      ) : (
+                        <Text style={styles.detailValue}>{item.faculty}</Text>
+                      )}
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.detailBox,
+                      item.isSelected
+                        ? styles.detailBoxGreen
+                        : styles.detailBoxPurple,
+                    ]}
+                  >
+                    <MapPin
+                      color={item.isSelected ? "#166534" : "#a855f7"}
+                      size={16}
+                    />
+                    <View style={styles.detailInfo}>
+                      <Text style={styles.detailLabel}>Room</Text>
+                      <Text style={styles.detailValue}>{item.room}</Text>
+                    </View>
                   </View>
                 </View>
-
-                <View
-                  style={[
-                    styles.detailBox,
-                    item.isSelected
-                      ? styles.detailBoxGreen
-                      : styles.detailBoxPurple,
-                  ]}
-                >
-                  <MapPin
-                    color={item.isSelected ? "#166534" : "#a855f7"}
-                    size={16}
-                  />
-                  <View style={styles.detailInfo}>
-                    <Text style={styles.detailLabel}>Room</Text>
-                    <Text style={styles.detailValue}>{item.room}</Text>
-                  </View>
-                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -251,4 +358,54 @@ const styles = StyleSheet.create({
   detailInfo: { flex: 1 },
   detailLabel: { fontSize: 11, color: "#64748b", marginBottom: 2 },
   detailValue: { fontSize: 14, fontWeight: "500", color: "#1e293b" },
+  dropdownContainer: {
+    marginTop: 4,
+    position: "relative",
+    zIndex: 10,
+  },
+  dropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+  },
+  dropdownText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#0f172a",
+    flex: 1,
+  },
+  dropdownMenu: {
+    marginTop: 6,
+    backgroundColor: "#ffffff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingVertical: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  dropdownOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  dropdownOptionSelected: {
+    backgroundColor: "#eff6ff",
+  },
+  dropdownOptionText: {
+    fontSize: 14,
+    color: "#0f172a",
+  },
+  dropdownOptionTextSelected: {
+    fontWeight: "700",
+    color: "#1d4ed8",
+  },
 });
