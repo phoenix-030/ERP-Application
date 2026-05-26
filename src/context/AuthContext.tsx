@@ -45,13 +45,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         try {
           await authService.signOut();
-        } catch {
+        } catch {x
           // ignore cleanup errors
         }
         if (mounted) setUser(null);
       } finally {
         if (mounted) setIsLoading(false);
-      }
+      } 
     }
 
     hydrate();
