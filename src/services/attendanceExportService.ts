@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system";
+import { EncodingType, File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import * as XLSX from "xlsx";
@@ -22,41 +22,27 @@ export type AttendanceExportRow = {
 };
 
 export type AttendanceExportFilter = {
-  date?: string;
-  className?: string;
-  subject?: string;
-  staffName?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 function normalizeString(value?: string): string {
   return value?.trim() ?? "";
 }
 
-function getExportDirectory(): string {
-  const rootDirectory =
-    FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
-
-  if (!rootDirectory) {
-    throw new Error("Unable to determine an export directory.");
-  }
-
-  return rootDirectory;
-}
-
-function buildWorkbookRows(rows: AttendanceExportRow[]): unknown[][] {
-  const headers = [
-    "Student Name",
-    "Student ID",
-    "Attendance Status",
-    "Date",
-    "Time",
-    "Staff Name",
-    "Subject",
-    "Class",
-  ];
-
-  return [
-    headers,
+function buildWorkbook(rows: AttendanceExportRow[]) {
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    [
+      "Student Name",
+      "Student ID",
+      "Attendance Status",
+      "Date",
+      "Time",
+      "Staff Name",
+      "Subject",
+      "Class",
+    ],
     ...rows.map((row) => [
       row.studentName,
       row.studentId,
@@ -67,28 +53,31 @@ function buildWorkbookRows(rows: AttendanceExportRow[]): unknown[][] {
       row.subject,
       row.className,
     ]),
-  ];
-}
-
-async function writeWorkbookToPath(
-  rows: AttendanceExportRow[],
-  destinationPath: string,
-): Promise<void> {
-  const directory = `${getExportDirectory()}attendance_exports/`;
-  await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-
-  const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.aoa_to_sheet(buildWorkbookRows(rows));
+  ]);
 
   XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance");
+  return workbook;
+}
+
+function createAttendanceFile(filename: string): File {
+  return new File(Paths.document, "attendance_exports", filename);
+}
+
+async function writeWorkbookFile(
+  rows: AttendanceExportRow[],
+  filename: string,
+): Promise<File> {
+  const workbook = buildWorkbook(rows);
   const workbookBase64 = XLSX.write(workbook, {
     bookType: "xlsx",
     type: "base64",
   });
 
-  await FileSystem.writeAsStringAsync(destinationPath, workbookBase64, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  const file = createAttendanceFile(filename);
+  await file.create({ intermediates: true, overwrite: true });
+  await file.write(workbookBase64, { encoding: EncodingType.Base64 });
+
+  return file;
 }
 
 async function loadStoredRows(): Promise<AttendanceExportRow[]> {
@@ -114,22 +103,20 @@ export async function getAttendanceExportRows(): Promise<
 
 export async function saveAttendanceExportRows(
   rows: AttendanceExportRow[],
-): Promise<string> {
+): Promise<File> {
   const serializedRows = rows.slice().sort((a, b) => b.createdAt - a.createdAt);
-  const destinationPath = `${getExportDirectory()}attendance_exports/attendance_export.xlsx`;
 
   await AsyncStorage.setItem(
     ATTENDANCE_EXPORT_HISTORY_KEY,
     JSON.stringify(serializedRows),
   );
-  await writeWorkbookToPath(serializedRows, destinationPath);
 
-  return destinationPath;
+  return writeWorkbookFile(serializedRows, "attendance_export.xlsx");
 }
 
 export async function appendAttendanceExportRow(
   row: AttendanceExportRow,
-): Promise<string> {
+): Promise<File> {
   const rows = await loadStoredRows();
   rows.unshift(row);
   return saveAttendanceExportRows(rows);
@@ -157,26 +144,17 @@ export async function getFilteredAttendanceExportRows(
 ): Promise<AttendanceExportRow[]> {
   const rows = await getAttendanceExportRows();
   const normalizedFilter = {
-    date: normalizeString(filter.date),
-    className: normalizeString(filter.className),
-    subject: normalizeString(filter.subject),
-    staffName: normalizeString(filter.staffName),
+    dateFrom: normalizeString(filter.dateFrom),
+    dateTo: normalizeString(filter.dateTo),
   };
 
   return rows.filter((row) => {
-    const matchesDate =
-      !normalizedFilter.date || row.date === normalizedFilter.date;
-    const matchesClass =
-      !normalizedFilter.className ||
-      row.className.toLowerCase() === normalizedFilter.className.toLowerCase();
-    const matchesSubject =
-      !normalizedFilter.subject ||
-      row.subject.toLowerCase() === normalizedFilter.subject.toLowerCase();
-    const matchesStaff =
-      !normalizedFilter.staffName ||
-      row.staffName.toLowerCase() === normalizedFilter.staffName.toLowerCase();
+    const matchesDateFrom =
+      !normalizedFilter.dateFrom || row.date >= normalizedFilter.dateFrom;
+    const matchesDateTo =
+      !normalizedFilter.dateTo || row.date <= normalizedFilter.dateTo;
 
-    return matchesDate && matchesClass && matchesSubject && matchesStaff;
+    return matchesDateFrom && matchesDateTo;
   });
 }
 
@@ -190,28 +168,37 @@ export async function downloadAttendanceWorkbook(
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const destinationPath = `${getExportDirectory()}attendance_exports/attendance_export_${timestamp}.xlsx`;
-
-  await writeWorkbookToPath(filteredRows, destinationPath);
 
   if (Platform.OS === "web") {
-    const blob = await fetch(`file://${destinationPath}`).then((response) =>
-      response.blob(),
-    );
+    const workbook = buildWorkbook(filteredRows);
+    const workbookBytes = XLSX.write(workbook, {
+      bookType: "xlsx",
+      type: "array",
+    }) as Uint8Array;
+    const blob = new Blob([new Uint8Array(workbookBytes)], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `attendance_export_${timestamp}.xlsx`;
     anchor.click();
     URL.revokeObjectURL(url);
-    return destinationPath;
+    return `attendance_export_${timestamp}.xlsx`;
   }
 
-  await Sharing.shareAsync(destinationPath, {
-    mimeType:
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    dialogTitle: "Download Attendance Export",
-  });
+  const file = await writeWorkbookFile(
+    filteredRows,
+    `attendance_export_${timestamp}.xlsx`,
+  );
 
-  return destinationPath;
+  if (Platform.OS === "ios" || Platform.OS === "android") {
+    await Sharing.shareAsync(file.uri, {
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      dialogTitle: "Download Attendance Export",
+    });
+  }
+
+  return file.uri;
 }

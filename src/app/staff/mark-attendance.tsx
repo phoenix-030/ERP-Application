@@ -1,22 +1,22 @@
 import { CalendarCheck, CheckCircle2, Download } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/context/AuthContext";
 import { downloadAttendanceWorkbook } from "@/services/attendanceExportService";
 import {
-    addAttendanceRecord,
-    getAllStudentUsers,
+  addAttendanceRecord,
+  getAllStudentUsers,
 } from "@/services/studentService";
 
 type StudentAttendanceOption = {
@@ -33,10 +33,8 @@ export default function MarkAttendanceScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [signatureName, setSignatureName] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
-  const [classFilter, setClassFilter] = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("");
-  const [staffFilter, setStaffFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -76,11 +74,6 @@ export default function MarkAttendanceScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    setSubjectFilter(user?.subject ?? "");
-    setClassFilter(user?.yearSection ?? user?.department ?? "");
-  }, [user?.department, user?.subject, user?.yearSection]);
-
   const toggleAttendance = (index: number) => {
     setStudents((prev) =>
       prev.map((student, i) =>
@@ -92,6 +85,36 @@ export default function MarkAttendanceScreen() {
   const className =
     user?.yearSection?.trim() || user?.department?.trim() || "General";
   const subjectName = user?.subject?.trim() || "Attendance";
+
+  const formatDate = (date: Date) => date.toISOString().slice(0, 10);
+  const applyDateRange = (from: Date, to: Date) => {
+    setDateFrom(formatDate(from));
+    setDateTo(formatDate(to));
+  };
+
+  const setTodayRange = () => {
+    const today = new Date();
+    applyDateRange(today, today);
+  };
+
+  const setLast7DaysRange = () => {
+    const today = new Date();
+    const last7 = new Date(today);
+    last7.setDate(today.getDate() - 6);
+    applyDateRange(last7, today);
+  };
+
+  const setThisMonthRange = () => {
+    const today = new Date();
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    applyDateRange(firstOfMonth, today);
+  };
+
+  const setThisYearRange = () => {
+    const today = new Date();
+    const firstOfYear = new Date(today.getFullYear(), 0, 1);
+    applyDateRange(firstOfYear, today);
+  };
 
   const handleSave = async () => {
     const trimmedSignature = signatureName.trim();
@@ -143,14 +166,12 @@ export default function MarkAttendanceScreen() {
 
     try {
       await downloadAttendanceWorkbook({
-        date: dateFilter.trim() || undefined,
-        className: classFilter.trim() || undefined,
-        subject: subjectFilter.trim() || undefined,
-        staffName: staffFilter.trim() || undefined,
+        dateFrom: dateFrom.trim() || undefined,
+        dateTo: dateTo.trim() || undefined,
       });
 
       Alert.alert(
-        "Download ready",
+        "Download successfully",
         "The filtered Excel file has been generated.",
       );
     } catch (error) {
@@ -253,35 +274,48 @@ export default function MarkAttendanceScreen() {
         <View style={styles.exportCard}>
           <Text style={styles.sectionTitle}>Download Excel</Text>
           <Text style={styles.helperText}>
-            Filter by date, class, subject, or staff name before downloading.
+            Filter by date range before downloading.
           </Text>
+
+          <View style={styles.rangeOptionsContainer}>
+            <TouchableOpacity
+              style={styles.rangeOption}
+              onPress={setTodayRange}
+            >
+              <Text style={styles.rangeOptionText}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rangeOption}
+              onPress={setLast7DaysRange}
+            >
+              <Text style={styles.rangeOptionText}>Last 7 Days</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rangeOption}
+              onPress={setThisMonthRange}
+            >
+              <Text style={styles.rangeOptionText}>This Month</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rangeOption}
+              onPress={setThisYearRange}
+            >
+              <Text style={styles.rangeOptionText}>This Year</Text>
+            </TouchableOpacity>
+          </View>
 
           <TextInput
             style={styles.filterInput}
-            value={dateFilter}
-            onChangeText={setDateFilter}
-            placeholder="Date (YYYY-MM-DD)"
+            value={dateFrom}
+            onChangeText={setDateFrom}
+            placeholder="From (YYYY-MM-DD)"
             placeholderTextColor="#94a3b8"
           />
           <TextInput
             style={styles.filterInput}
-            value={classFilter}
-            onChangeText={setClassFilter}
-            placeholder="Class"
-            placeholderTextColor="#94a3b8"
-          />
-          <TextInput
-            style={styles.filterInput}
-            value={subjectFilter}
-            onChangeText={setSubjectFilter}
-            placeholder="Subject"
-            placeholderTextColor="#94a3b8"
-          />
-          <TextInput
-            style={styles.filterInput}
-            value={staffFilter}
-            onChangeText={setStaffFilter}
-            placeholder="Staff Name"
+            value={dateTo}
+            onChangeText={setDateTo}
+            placeholder="To (YYYY-MM-DD)"
             placeholderTextColor="#94a3b8"
           />
 
@@ -357,6 +391,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   pillText: { fontSize: 12, fontWeight: "600", color: "#4338ca" },
+  rangeOptionsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 16,
+  },
+  rangeOption: {
+    backgroundColor: "#eef2ff",
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  rangeOptionText: { fontSize: 12, fontWeight: "700", color: "#2563eb" },
   signatureSection: {
     marginTop: 8,
     backgroundColor: "#ffffff",
