@@ -28,7 +28,7 @@ export default function StaffDashboard() {
   const router = useRouter();
   const { user } = useAuth();
   const [studentList, setStudentList] = useState<
-    Array<{ name: string; loginId: string }>
+    { name: string; loginId: string }[]
   >([]);
 
   const selectedSubject =
@@ -187,7 +187,7 @@ export default function StaffDashboard() {
         </View>
 
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Today's Classes — {todayName}</Text>
+          <Text style={styles.sectionTitle}>{"Today's Classes — "}{todayName}</Text>
           {classes.length === 0 ? (
             <Text style={styles.emptyText}>
               No classes scheduled for today.

@@ -1,7 +1,6 @@
-import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Calendar, TrendingDown, TrendingUp } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -124,29 +123,27 @@ export default function AttendanceScreen() {
     setIsLoading(false);
   }, [user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-      void loadRecord();
+    void loadRecord();
 
-      const unsubscribe = subscribeStudentData(() => {
-        if (isMounted) {
-          void loadRecord();
-        }
-      });
+    const unsubscribe = subscribeStudentData(() => {
+      if (isMounted) {
+        void loadRecord();
+      }
+    });
 
-      return () => {
-        isMounted = false;
-        unsubscribe();
-      };
-    }, [loadRecord]),
-  );
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [loadRecord]);
 
   const attendanceRecords = record?.attendance ?? [];
   const summary = useMemo(
-    () => getAttendanceSummary(attendanceRecords),
-    [attendanceRecords],
+    () => getAttendanceSummary(record?.attendance ?? []),
+    [record?.attendance],
   );
   const latestAttendance = attendanceRecords.slice(0, 5);
 

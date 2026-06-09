@@ -4,7 +4,6 @@ import {
   getStudentRecordByUserId,
   subscribeStudentData,
 } from "@/services/studentService";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   AlertCircle,
   Bell,
@@ -14,7 +13,7 @@ import {
   ChevronRight,
   Clock,
 } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -42,32 +41,32 @@ export default function StudentDashboard() {
     setRecord(data);
   }, [user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-      void loadRecord();
+    void loadRecord();
 
-      const unsubscribe = subscribeStudentData(() => {
-        if (isMounted) {
-          void loadRecord();
-        }
-      });
+    const unsubscribe = subscribeStudentData(() => {
+      if (isMounted) {
+        void loadRecord();
+      }
+    });
 
-      return () => {
-        isMounted = false;
-        unsubscribe();
-      };
-    }, [loadRecord]),
-  );
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [loadRecord]);
 
   const attendancePercent = useMemo(() => {
-    if (!record?.attendance?.length) return 87;
-    const present = record.attendance.filter(
-      (item) => item.status === "present",
+    const attendance = record?.attendance ?? [];
+    if (!attendance.length) return null;
+
+    const present = attendance.filter(
+      (item) => item.status?.toLowerCase() === "present",
     ).length;
-    const total = record.attendance.length;
-    return total ? Math.round((present / total) * 100) : 87;
+
+    return Math.round((present / attendance.length) * 100);
   }, [record]);
 
   const currentGpa = useMemo(() => {
@@ -93,18 +92,19 @@ export default function StudentDashboard() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
         <View style={styles.header}>
           <Text style={styles.greeting}>Welcome back,</Text>
           <Text style={styles.name}>{user?.name || "Student"}</Text>
           <Text style={styles.subtitle}>CSE - 3rd Year</Text>
         </View>
 
-        {/* Metrics Grid */}
+        {/* Four Box */}
         <View style={styles.grid}>
           <View style={[styles.card, styles.cardBlue]}>
             <Calendar color="#ffffff" size={24} style={styles.cardIcon} />
-            <Text style={styles.cardValue}>{attendancePercent}%</Text>
+            <Text style={styles.cardValue}>
+              {attendancePercent === null ? "--" : `${attendancePercent}%`}
+            </Text>
             <Text style={styles.cardLabel}>Attendance</Text>
           </View>
 
@@ -127,10 +127,10 @@ export default function StudentDashboard() {
           </View>
         </View>
 
-        {/* Today's Schedule */}
+        {/* daily time table  */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Schedule</Text>
+            <Text style={styles.sectionTitle}>{"Today's Schedule"}</Text>
             <TouchableOpacity
               style={styles.viewAllBtn}
               onPress={() => router.push("/student/timetable")}

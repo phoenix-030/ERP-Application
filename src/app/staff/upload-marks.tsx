@@ -126,7 +126,7 @@ export default function UploadMarksScreen() {
       setExternalMarks("80");
       setGrade("A");
       setRemarks("Good performance");
-    } catch (error) {
+    } catch {
       Alert.alert("Upload failed", "Unable to upload marks right now.");
     } finally {
       setIsUploading(false);

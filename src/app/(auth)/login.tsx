@@ -259,7 +259,7 @@ export default function LoginScreen() {
                   <Text
                     style={[styles.signupPromptText, { color: isDark ? '#000000' : '#4b5563' }]}
                   >
-                    Don't have an account?
+                    {"Don't have an account?"}
                   </Text>
                   <TouchableOpacity onPress={() => router.push('/signup')}>
                     <Text

@@ -14,7 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { DAYS, getCurrentDayName, WEEKLY_SCHEDULE } from "@/lib/timetable";
 import { getUsers } from "@/services/authStorage";
 
-export default function timetable() {
+export default function Timetable() {
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(getCurrentDayName());
   const [staffOptions, setStaffOptions] = useState<string[]>([]);

@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { EncodingType, File, Paths } from "expo-file-system";
+import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { Platform } from "react-native";
 import * as XLSX from "xlsx";
@@ -75,7 +75,7 @@ async function writeWorkbookFile(
 
   const file = createAttendanceFile(filename);
   await file.create({ intermediates: true, overwrite: true });
-  await file.write(workbookBase64, { encoding: EncodingType.Base64 });
+  await file.write(workbookBase64, { encoding: "base64" });
 
   return file;
 }

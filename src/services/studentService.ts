@@ -14,8 +14,6 @@ import type {
 } from "@/types/student";
 
 const STUDENT_DATA_KEY = "educonnect_student_data";
-const DEFAULT_INTERNAL_MAX = 50;
-const DEFAULT_EXTERNAL_MAX = 100;
 const DEFAULT_TOTAL_MAX = 100;
 
 const studentDataListeners = new Set<() => void>();

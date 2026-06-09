@@ -26,10 +26,7 @@ export default function AdminLayout() {
   }
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: styles.tabBar,
+    <Tabs      screenOptions={{  headerShown: false,        tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: '#6366f1',
         tabBarInactiveTintColor: '#6b7280',
         tabBarLabelStyle: styles.tabBarLabel,
