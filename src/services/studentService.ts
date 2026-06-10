@@ -65,6 +65,17 @@ async function saveStudentDataMap(
   studentDataListeners.forEach((listener) => listener());
 }
 
+export async function removeStudentRecord(userId: string): Promise<void> {
+  const map = await loadStudentDataMap();
+  if (!map[userId]) {
+    return;
+  }
+
+  const updatedMap = { ...map };
+  delete updatedMap[userId];
+  await saveStudentDataMap(updatedMap);
+}
+
 export function subscribeStudentData(listener: () => void): () => void {
   studentDataListeners.add(listener);
   return () => {

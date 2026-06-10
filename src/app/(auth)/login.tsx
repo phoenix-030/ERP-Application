@@ -226,7 +226,10 @@ export default function LoginScreen() {
                     </Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity style={{ paddingVertical: 4 }}>
+                  <TouchableOpacity
+                    onPress={() => (router.push as any)('/(auth)/forgot-password')}
+                    style={{ paddingVertical: 4 }}
+                  >
                     <Text
                       style={[styles.forgotPasswordText, isDark && styles.forgotPasswordTextDark]}
                     >

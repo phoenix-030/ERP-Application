@@ -1,8 +1,28 @@
 import { useAuth } from "@/context/AuthContext";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import {  BookOpen,ChevronDown,Edit3,LogOut,Mail,MapPin,Phone,Settings,User,} from "lucide-react-native";
+import {
+  BookOpen,
+  ChevronDown,
+  Edit3,
+  LogOut,
+  Mail,
+  MapPin,
+  Phone,
+  Settings,
+  User,
+} from "lucide-react-native";
 import React, { useEffect, useState } from "react";
-import {  Alert,  ScrollView,  StyleSheet,  Text,  TextInput,  TouchableOpacity,  View,} from "react-native";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const STAFF_SUBJECT_OPTIONS = [
@@ -21,6 +41,7 @@ export function ProfileView() {
   const isStudent = user?.role === "student";
 
   const [isEditing, setIsEditing] = useState(false);
+  const [avatar, setAvatar] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -38,6 +59,7 @@ export function ProfileView() {
   useEffect(() => {
     if (!user) return;
 
+    setAvatar(user.avatar ?? "");
     setName(user.name);
     setEmail(user.email);
     setPhone(user.phone ?? "");
@@ -60,6 +82,7 @@ export function ProfileView() {
   const handleCancel = () => {
     if (!user) return;
     setIsEditing(false);
+    setAvatar(user.avatar ?? "");
     setName(user.name);
     setEmail(user.email);
     setPhone(user.phone ?? "");
@@ -79,6 +102,36 @@ export function ProfileView() {
     setParentPhone(user.parentPhone ?? "");
   };
 
+  const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission required",
+        "Please allow access to your photo library to choose a profile picture.",
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+      base64: true,
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    const imageUri = asset.base64
+      ? `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`
+      : asset.uri;
+
+    setAvatar(imageUri ?? "");
+    setIsEditing(true);
+  };
+
   const handleSave = async () => {
     if (!name.trim() || !email.trim()) {
       Alert.alert("Error", "Name and email are required.");
@@ -89,6 +142,7 @@ export function ProfileView() {
 
     try {
       await updateProfile({
+        avatar: avatar.trim() || undefined,
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
@@ -140,9 +194,17 @@ export function ProfileView() {
           style={styles.profileCard}
         >
           <View style={styles.profileHeader}>
-            <View style={styles.avatarContainer}>
-              <User color="#ffffff" size={40} />
-            </View>
+            <TouchableOpacity
+              onPress={isEditing ? handlePickAvatar : undefined}
+              activeOpacity={isEditing ? 0.8 : 1}
+              style={styles.avatarContainer}
+            >
+              {avatar ? (
+                <Image source={{ uri: avatar }} style={styles.avatarImage} />
+              ) : (
+                <User color="#ffffff" size={40} />
+              )}
+            </TouchableOpacity>
             <View style={styles.profileInfo}>
               {isEditing ? (
                 <TextInput
@@ -153,14 +215,23 @@ export function ProfileView() {
                   style={[styles.input, styles.inputWhite]}
                 />
               ) : (
-                <Text style={styles.profileName}>{user.name}</Text>
+                <Text style={styles.profileName}>Name: {user.name}</Text>
               )}
-              <Text style={styles.profileSubtext}>{user.loginId}</Text>
+              <Text style={styles.profileSubtext}>ID: {user.loginId}</Text>
               <Text style={styles.profileSubtext}>
                 {user.role.toUpperCase()}
               </Text>
             </View>
           </View>
+
+          {isEditing && (
+            <TouchableOpacity
+              onPress={handlePickAvatar}
+              style={styles.changePhotoButton}
+            >
+              <Text style={styles.changePhotoText}>Choose profile photo</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
@@ -168,7 +239,7 @@ export function ProfileView() {
               disabled={isSaving}
               style={[styles.actionButton, styles.primaryButton]}
             >
-              <Edit3 color="#ffffff" size={16} />
+              <Edit3 color="#b0b0b0" size={16} />
               <Text style={styles.actionButtonText}>
                 {isEditing ? "Save Changes" : "Edit Profile"}
               </Text>
@@ -496,16 +567,36 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "rgba(255, 255, 255, 0.4)",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  changePhotoButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginBottom: 16,
+  },
+  changePhotoText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   profileInfo: {
     marginLeft: 16,
     flex: 1,
   },
   profileName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#ffffff",
     marginBottom: 4,
+    fontFamily: "times-new-roman",
   },
   profileSubtext: {
     fontSize: 13,

@@ -1,6 +1,7 @@
 export type UserRole = "student" | "staff" | "admin";
 
 export type UserProfile = {
+  avatar?: string;
   phone?: string;
   address?: string;
   dob?: string;
@@ -41,6 +42,7 @@ export type ProfileUpdate = Partial<
     StoredUser,
     | "name"
     | "email"
+    | "avatar"
     | "phone"
     | "address"
     | "dob"
